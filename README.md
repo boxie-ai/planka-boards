@@ -57,3 +57,64 @@ Planka is [AGPL-3.0 licensed](https://github.com/plankanban/planka/blob/master/L
 ## Contributors
 
 [![](https://contrib.rocks/image?repo=plankanban/planka)](https://github.com/plankanban/planka/graphs/contributors)
+
+# Env Vars
+
+```sh
+export BASE_URL='http://localhost:8080'
+export DATABASE_URL='postgres://postgres:bdN4qLywokhwwoFKqTcN@planka-postgres.ct0m8cusowhq.us-east-1.rds.amazonaws.com:5432/planka'
+export SECRET_KEY='random-secret-key-nobody-cares-about'
+export TRUST_PROXY='0'
+export TOKEN_EXPIRES_IN='3'
+export DEFAULT_ADMIN_EMAIL='admin@boxie.ai'
+export DEFAULT_ADMIN_PASSWORD='zaWDMPVL5747'
+export DEFAULT_ADMIN_NAME='Admin'
+export DEFAULT_ADMIN_USERNAME='admin'
+```
+
+# Local run
+
+```sh
+podman build . -t planka-boards
+podman run \
+  -e BASE_URL=$BASE_URL \
+  -e DATABASE_URL=${DATABASE_URL} \
+  -e SECRET_KEY=${SECRET_KEY} \
+  -e TRUST_PROXY=${TRUST_PROXY} \
+  -e TOKEN_EXPIRES_IN=${TOKEN_EXPIRES_IN} \
+  -e DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL} \
+  -e DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD} \
+  -e DEFAULT_ADMIN_NAME=${DEFAULT_ADMIN_NAME} \
+  -e DEFAULT_ADMIN_USERNAME=${DEFAULT_ADMIN_USERNAME} \
+  -p 8080:1337 \
+  planka-boards
+```
+
+# Deploy to AWS ECS
+
+## Upload image to AWS ECR
+
+```sh
+export AWS_ACCOUNT_NUMBER=673666028488
+export AWS_REGION=us-east-1
+export AWS_PROFILE=boxie-prod
+export AWS_ECR_REPOSITORY_NAME=boxie/planka-boards
+
+# authentication in AWS
+aws ecr get-login-password --region ${AWS_REGION} | podman login --username AWS --password-stdin ${AWS_ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+# build image with the proper tag
+podman build -t ${AWS_ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPOSITORY_NAME}:latest .
+
+# upload using aws cli
+podman push ${AWS_ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPOSITORY_NAME}:latest
+```
+
+RDS Postgres
+
+```sh
+AWS RDS planka-db
+master username: postgres
+master password: bdN4qLywokhwwoFKqTcN
+# postgres://<username>:<password>@<database_endpoint>/<database_name>
+```

@@ -6,21 +6,25 @@ dotenv.config({
   path: path.resolve(__dirname, '../.env'),
 });
 
-function buildSSLConfig() {
-  if (process.env.KNEX_REJECT_UNAUTHORIZED_SSL_CERTIFICATE === 'false') {
-    return {
-      rejectUnauthorized: false,
-    };
-  }
+// function buildSSLConfig() {
+//   if (process.env.KNEX_REJECT_UNAUTHORIZED_SSL_CERTIFICATE === 'false') {
+//     return {
+//       sslmode: 'require',
+//       rejectUnauthorized: false,
+//     };
+//   }
 
-  return false;
-}
+//   return false;
+// }
 
 module.exports = {
   client: 'pg',
   connection: {
     connectionString: process.env.DATABASE_URL,
-    ssl: buildSSLConfig(),
+    ssl: {
+      sslmode: 'require',
+      rejectUnauthorized: false,
+    },
   },
   migrations: {
     tableName: 'migration',
