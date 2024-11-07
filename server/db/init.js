@@ -1,3 +1,4 @@
+// eslint-ignore no-console
 const initKnex = require('knex');
 
 const knexfile = require('./knexfile');
