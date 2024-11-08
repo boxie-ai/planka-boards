@@ -61,7 +61,7 @@ Planka is [AGPL-3.0 licensed](https://github.com/plankanban/planka/blob/master/L
 # Env Vars
 
 ```sh
-export BASE_URL='http://localhost:8080'
+export BASE_URL='http://localhost:1337'
 export DATABASE_URL='postgres://postgres:bdN4qLywokhwwoFKqTcN@planka-postgres.ct0m8cusowhq.us-east-1.rds.amazonaws.com:5432/planka'
 export SECRET_KEY='random-secret-key-nobody-cares-about'
 export TRUST_PROXY='0'
@@ -86,7 +86,7 @@ podman run \
   -e DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD} \
   -e DEFAULT_ADMIN_NAME=${DEFAULT_ADMIN_NAME} \
   -e DEFAULT_ADMIN_USERNAME=${DEFAULT_ADMIN_USERNAME} \
-  -p 8080:1337 \
+  -p 1337:1337 \
   planka-boards
 ```
 
