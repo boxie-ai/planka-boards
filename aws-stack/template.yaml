@@ -1,0 +1,248 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Deploy infrastructure with EC2, ALB, Route53
+
+Parameters:
+  EC2AvailabilityZone:
+    Type: String
+    Default: ""
+  TemplateUrlBase:
+    Type: String
+    Description: Base URL for CloudFormation templates
+    Default: ""
+  HostedZoneId:
+    Type: String
+    Description: Domain Route53 hosted zone id
+    Default: ""
+  DomainName:
+    Type: String
+    Description: The custom domain name
+    Default: ""
+  SubDomainName:
+    Type: String
+    Description: The custom sub domain name
+    Default: ""
+  AmiID:
+    Type: String
+    Description: The ID of the AMI image
+    Default: ""
+  UserData:
+    Type: String
+    Description: User Data content for the ec2 instance
+    Default: ""
+  PublicKeyMaterial:
+    Type: String
+    Description: SSH Public Key content
+    Default: ""
+
+Resources:
+  WebCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Sub "${SubDomainName}.${DomainName}"
+      SubjectAlternativeNames:
+        - !Sub "${SubDomainName}.${DomainName}"
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub "${SubDomainName}.${DomainName}"
+          HostedZoneId: !Ref HostedZoneId
+
+  # NSG for ALB
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: alb-security-group
+      VpcId: !GetAtt VPC.VpcId
+      GroupDescription: Allow HTTP/HTTPS inbound and outbound traffic
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  # NSG for EC2
+  Ec2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: ec2-security-group
+      VpcId: !GetAtt VPC.VpcId
+      GroupDescription: Allow HTTP/HTTPS, SSH, RDP inbound and outbound traffic
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: 0.0.0.0/0
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Join ["", [!Ref "AWS::StackName", "-VPC"]]
+
+  KeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: ws-ec2-keypair
+      KeyType: rsa
+      PublicKeyMaterial: !Ref PublicKeyMaterial
+
+  WSWebAppInstance:
+    DependsOn:
+      - Ec2SecurityGroup
+      - KeyPair
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiID
+      InstanceType: t2.micro
+      AvailabilityZone: String,
+      Tags:
+        - Key: Name
+          Value: "WS instance"
+      KeyName: !Ref KeyPair
+      UserData: !Ref UserData
+      SecurityGroupIds:
+        - !GetAtt Ec2SecurityGroup.GroupId
+      # SubnetId: !Select [0, !Split [",", !Ref SubnetIds]]
+
+  WSWebAppEIP:
+    DependsOn:
+      - WSWebAppInstance
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref WSWebAppInstance
+      Tags:
+        - Key: Name
+          Value: "ws-webapp-eip"
+
+  # ALB
+  ApplicationLoadBalancer:
+    DependsOn:
+      - AlbSecurityGroup
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: ApplicationLoadBalancer
+      # Subnets: !Ref SubnetIds
+      SecurityGroups:
+        - !GetAtt AlbSecurityGroup.GroupId
+      Type: application
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: "300"
+      Tags:
+        - Key: Name
+          Value: ApplicationLoadBalancer
+
+  # ALB Listener redirects to HTTPS
+  AlbListenerHTTP:
+    DependsOn:
+      - ApplicationLoadBalancer
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Host: "#{host}"
+            Path: "/#{path}"
+            Port: "443"
+            Protocol: HTTPS
+            Query: "#{query}"
+            StatusCode: HTTP_301
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  # ALB listener on HTTPS
+  AlbListenerHTTPS:
+    DependsOn:
+      - ApplicationLoadBalancer
+      - WebCertificate
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: "ELBSecurityPolicy-TLS13-1-2-2021-06"
+      Certificates:
+        - CertificateArn: !Ref WebCertificate
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            ContentType: "text/plain"
+            MessageBody: "Page not found"
+            StatusCode: "404"
+
+  DNSRecord:
+    DependsOn:
+      - ApplicationLoadBalancer
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      Comment: !Sub "DNS records for ${DomainName}"
+      HostedZoneId: !Ref HostedZoneId
+      RecordSets:
+        - Name: !Sub "${SubDomainName}.${DomainName}"
+          Type: A
+          AliasTarget:
+            DNSName: !GetAtt ApplicationLoadBalancer.DNSName
+            HostedZoneId: !GetAtt ApplicationLoadBalancer.CanonicalHostedZoneID
+
+Outputs:
+  Ec2SecurityGroupId:
+    Value: !GetAtt Ec2SecurityGroup.GroupId
+    Description: EC2 Security Group ID
+    Export:
+      Name: Ec2SecurityGroupId
+
+  AlbSecurityGroupId:
+    Value: !GetAtt AlbSecurityGroup.GroupId
+    Description: ALB Security Group ID
+    Export:
+      Name: AlbSecurityGroupId
+
+  VpcId:
+    Value: !Ref VPC
+    Export:
+      Name: VpcId
+
+  WSWebAppInstanceID:
+    Value: !Ref WSWebAppInstance
+    Description: the instance ID
+    Export:
+      Name: WSWebAppInstanceID
+
+  LoadBalancerDNSName:
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Description: The DNS name of the load balancer
+    Export:
+      Name: LoadBalancerDNSName
+  AlbCanonicalHostedZoneID:
+    Value: !GetAtt ApplicationLoadBalancer.CanonicalHostedZoneID
+    Description: The host ID of the ALB
+    Export:
+      Name: AlbCanonicalHostedZoneID
+
+  WebCertificateArn:
+    Description: Webcertificate aws resource number *aws id
+    Value: !Ref WebCertificate
+    Export:
+      Name: WebCertificateArn

@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: EC2 with preconfigured IIS and main page
+
+Parameters:
+  AmiID:
+    Type: String
+  UserData:
+    Type: String
+  PublicKeyMaterial:
+    Type: String
+  # SubnetIds:
+  #   Type: String
+
+Resources:
+  KeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: ws-ec2-keypair
+      KeyType: rsa
+      PublicKeyMaterial: !Ref PublicKeyMaterial
+
+  WSWebAppInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiID
+      InstanceType: t2.micro
+      AvailabilityZone: String,
+      Tags:
+        - Key: Name
+          Value: "WS instance"
+      KeyName: !Ref KeyPair
+      UserData: !Ref UserData
+      SecurityGroupIds:
+        - !ImportValue Ec2SecurityGroupId
+      # SubnetId: !Select [0, !Split [",", !Ref SubnetIds]]
+
+  WSWebAppEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref WSWebAppInstance
+      Tags:
+        - Key: Name
+          Value: "ws-webapp-eip"
+
+Outputs:
+  WSWebAppInstanceID:
+    Value: !Ref WSWebAppInstance
+    Description: the instance ID
+    Export:
+      Name: WSWebAppInstanceID

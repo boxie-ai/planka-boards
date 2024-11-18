@@ -1,4 +1,4 @@
-FROM node:18-alpine as server-dependencies
+FROM node:18-alpine AS server-dependencies
 
 RUN apk -U upgrade \
   && apk add build-base python3 \
@@ -30,7 +30,7 @@ RUN DISABLE_ESLINT_PLUGIN=true npm run build
 FROM node:18-alpine
 
 RUN apk -U upgrade \
-  && apk add bash \
+  && apk add bash dumb-init \
   --no-cache
 
 USER node
@@ -40,7 +40,7 @@ COPY --chown=node:node start.sh .
 COPY --chown=node:node server .
 COPY --chown=node:node healthcheck.js .
 
-RUN mv .env.sample .env
+# RUN mv .env.sample .env
 
 COPY --from=server-dependencies --chown=node:node /app/node_modules node_modules
 
@@ -56,5 +56,4 @@ EXPOSE 1337
 HEALTHCHECK --interval=10s --timeout=2s --start-period=15s \
   CMD node ./healthcheck.js
 
-
-CMD [ "bash", "start.sh" ]
+CMD [ "dumb-init", "bash", "start.sh" ]

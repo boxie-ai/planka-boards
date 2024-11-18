@@ -1,0 +1,19 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: VPC and networks
+
+Resources:
+  # First, a VPC:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Join ["", [!Ref "AWS::StackName", "-VPC"]]
+
+Outputs:
+  VpcId:
+    Type: "AWS::EC2::VPC::Id"
+    Value: !Ref VPC
