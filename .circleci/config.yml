@@ -4,17 +4,22 @@ orbs:
   aws-cli: circleci/aws-cli@5.1
   aws-ecr: circleci/aws-ecr@9.0
 
-workflows:
+jobs:
   build-and-push-image:
-    jobs:
+    machine:
+      image: ubuntu-2204:current
+    steps:
       - aws-ecr/build-and-push-image:
           account_id: ${AWS_ACCOUNT_ID}
           region: ${AWS_DEFAULT_REGION}
-          context: aws-prod
           create-repo: true
           dockerfile: Dockerfile
           path: .
           repo: boxie/planka
           tag: "$CIRCLE_SHA1"
-      # - deploy:
-      #     context: aws-prod
+
+workflows:
+  deploy:
+    jobs:
+      - build-and-push-image:
+          context: aws-prod
