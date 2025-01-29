@@ -13,7 +13,10 @@ jobs:
           at: .
       - run:
           name: Install AWS CLI
-          command: sudo pip install awscli
+          command: |
+            # sudo pip install awscli
+            sudo apt-get install awscli
+            aws --version
       - run:
           name: Configure AWS CLI
           command: |
