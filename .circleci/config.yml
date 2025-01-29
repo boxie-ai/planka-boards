@@ -1,11 +1,15 @@
 # This config was automatically generated from your source code
 # Stacks detected: deps:node:.,deps:python:sam-examples/py-serverless-connector/tests,deps:rust:sam-examples/rust-dinamo-db/rust_app,test:jest:
 version: 2.1
+orbs:
+  aws-cli: circleci/aws-cli@5.1
+  aws-ecr: circleci/aws-ecr@9.0
 jobs:
   deploy:
     # This is an example deploy job, not actually used by the workflow
     docker:
-      - image: public.ecr.aws/sam/build-nodejs22.x:latest
+      - image: cimg/base:2022.09
+      # - image: public.ecr.aws/sam/build-nodejs22.x:latest
     steps:
       - checkout
       - attach_workspace:
@@ -24,9 +28,6 @@ jobs:
             export AWS_REGION=us-east-1
             export AWS_ECR_REPOSITORY_NAME=boxie/planka
 
-            # authentication in AWS
-            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com
-
             # env vars
             export BASE_URL='https://boards.boxie.ai'
             export DATABASE_URL='postgres://postgres:bdN4qLywokhwwoFKqTcN@planka-postgres.ct0m8cusowhq.us-east-1.rds.amazonaws.com:5432/planka'
@@ -40,6 +41,16 @@ jobs:
 
             # build image with the proper tag
             docker build -t ${AWS_ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPOSITORY_NAME}:latest .
+
+      - run:
+          name: build and deploy docker image
+          command: |
+            export AWS_ACCOUNT_NUMBER=864899872180
+            export AWS_REGION=us-east-1
+            export AWS_ECR_REPOSITORY_NAME=boxie/planka
+
+            # authentication in AWS
+            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com
 
             # upload using aws cli
             docker push ${AWS_ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPOSITORY_NAME}:latest
@@ -86,5 +97,12 @@ jobs:
 workflows:
   build-and-test:
     jobs:
-      - deploy:
+      - aws-ecr/build-and-push-image:
           context: aws-prod
+          create-repo: true
+          dockerfile: Dockerfile
+          path: .
+          repo: boxie/planka
+          tag: "$CIRCLE_SHA1"
+      # - deploy:
+      #     context: aws-prod
