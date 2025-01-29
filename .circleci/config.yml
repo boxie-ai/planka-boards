@@ -1,0 +1,90 @@
+# This config was automatically generated from your source code
+# Stacks detected: deps:node:.,deps:python:sam-examples/py-serverless-connector/tests,deps:rust:sam-examples/rust-dinamo-db/rust_app,test:jest:
+version: 2.1
+jobs:
+  deploy:
+    # This is an example deploy job, not actually used by the workflow
+    docker:
+      - image: public.ecr.aws/sam/build-nodejs22.x:latest
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
+      - run:
+          name: Configure AWS CLI
+          command: |
+            echo $CI_AWS_SECRET_ACCESS_KEY_PROD
+            aws configure set aws_access_key_id $CI_AWS_ACCESS_KEY_PROD
+            aws configure set aws_secret_access_key $CI_AWS_SECRET_ACCESS_KEY_PROD
+            aws configure set default.region us-east-1
+      - run:
+          name: build and deploy docker image
+          command: |
+            export AWS_ACCOUNT_NUMBER=864899872180
+            export AWS_REGION=us-east-1
+            export AWS_ECR_REPOSITORY_NAME=boxie/planka
+
+            # authentication in AWS
+            aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+            # env vars
+            export BASE_URL='https://boards.boxie.ai'
+            export DATABASE_URL='postgres://postgres:bdN4qLywokhwwoFKqTcN@planka-postgres.ct0m8cusowhq.us-east-1.rds.amazonaws.com:5432/planka'
+            export SECRET_KEY='8b7fb48fa5325bacbf772556e28a5401a66a3bd8f1901257861b5e1f5269999141f8cd9f4cabee1b0bb25cdd1a113f2d1d8ddd25de863cab92ddafa4ec1e382c'
+            # export TRUST_PROXY='0'
+            # export TOKEN_EXPIRES_IN='3'
+            export DEFAULT_ADMIN_EMAIL='admin@boxie.ai'
+            export DEFAULT_ADMIN_PASSWORD='zaWDMPVL5747'
+            export DEFAULT_ADMIN_NAME='Admin'
+            export DEFAULT_ADMIN_USERNAME='admin'
+
+            # build image with the proper tag
+            docker build -t ${AWS_ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPOSITORY_NAME}:latest .
+
+            # upload using aws cli
+            docker push ${AWS_ACCOUNT_NUMBER}.dkr.ecr.${AWS_REGION}.amazonaws.com/${AWS_ECR_REPOSITORY_NAME}:latest
+
+      # - run:
+      #     name: deploy
+      #     command: |
+      #       export STACK_NAME='boxie-public-site'
+      #       export HOSTED_ZONE_ID_PROD='Z0050249M16XLP9WGS91'
+      #       # sam validate
+      #       # sam build
+      #       sam deploy \
+      #         --template deploy/template.yaml \
+      #         --resolve-s3 \
+      #         --stack-name $STACK_NAME \
+      #         --region us-east-1 \
+      #         --capabilities CAPABILITY_IAM \
+      #         --no-fail-on-empty-changeset \
+      #         --no-disable-rollback \
+      #         --parameter-overrides \
+      #             env=prod \
+      #             AppendIndexHtml=Enabled \
+      #             DomainName=boxie \
+      #             DomainExtension=ai \
+      #             HostedZoneId=$HOSTED_ZONE_ID_PROD
+      # - run:
+      #     name: copy code
+      #     command: |
+      #       export STACK_NAME='boxie-public-site'
+      #       aws cloudformation describe-stacks --stack-name $STACK_NAME > deploy/stack.json
+      #       node deploy/parse-cloudformation-output-as-env.js > deploy/stack.env
+      #       source deploy/stack.env
+      #       npm ci
+      #       npm run build
+      #       export BUILD_LOCAL_ROUTE='dist'
+      #       echo \
+      #         $BUILD_LOCAL_ROUTE \
+      #         $BUCKET_NAME
+
+      #       aws s3 sync $BUILD_LOCAL_ROUTE s3://$BUCKET_NAME --only-show-errors
+      #       # aws s3 sync ./upload s3://$BUCKET_NAME --only-show-errors
+      #       aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths "/*"
+
+workflows:
+  build-and-test:
+    jobs:
+      - deploy:
+          context: aws-prod
