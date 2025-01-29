@@ -1,12 +1,11 @@
-# This config was automatically generated from your source code
-# Stacks detected: deps:node:.,deps:python:sam-examples/py-serverless-connector/tests,deps:rust:sam-examples/rust-dinamo-db/rust_app,test:jest:
 version: 2.1
 
 orbs:
-  aws-ecr: circleci/aws-ecr@9.3.7
+  aws-cli: circleci/aws-cli@5.1
+  aws-ecr: circleci/aws-ecr@9.0
 
 workflows:
-  aws-ecr/build-and-push-image:
+  build-and-push-image:
     jobs:
       - aws-ecr/build-and-push-image:
           account_id: ${AWS_ACCOUNT_ID}
