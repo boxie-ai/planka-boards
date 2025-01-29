@@ -95,7 +95,7 @@ jobs:
       #       aws cloudfront create-invalidation --distribution-id $CLOUDFRONT_DISTRIBUTION_ID --paths "/*"
 
 workflows:
-  build-and-test:
+  build-and-push-image:
     jobs:
       - aws-ecr/build-and-push-image:
           context: aws-prod
