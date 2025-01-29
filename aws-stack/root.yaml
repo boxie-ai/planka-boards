@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Deploy infrastructure with EC2, ALB, Route53
+
+Parameters:
+  EC2AvailabilityZone:
+    Type: String
+    Default: ""
+  TemplateUrlBase:
+    Type: String
+    Description: Base URL for CloudFormation templates
+    Default: ""
+  HostedZoneId:
+    Type: String
+    Description: Domain Route53 hosted zone id
+    Default: ""
+  DomainName:
+    Type: String
+    Description: The custom domain name
+    Default: ""
+  SubDomainName:
+    Type: String
+    Description: The custom sub domain name
+    Default: ""
+  AmiID:
+    Type: String
+    Description: The ID of the AMI image
+    Default: ""
+  UserData:
+    Type: String
+    Description: User Data content for the ec2 instance
+    Default: ""
+  PublicKeyMaterial:
+    Type: String
+    Description: SSH Public Key content
+    Default: ""
+
+Resources:
+  nestedNSG:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "${TemplateUrlBase}/nested/nsg.yaml"
+      # Parameters:
+      #   VpcId: !Ref VpcId
+
+  nestedNetworks:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "${TemplateUrlBase}/nested/network.yaml"
+
+  nestedEC2:
+    DependsOn:
+      - nestedNSG
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "${TemplateUrlBase}/nested/ec2.yaml"
+      Parameters:
+        UserData: !Ref UserData
+        PublicKeyMaterial: !Ref PublicKeyMaterial
+        AmiID: !Ref AmiID
+        EC2AvailabilityZone: !Ref EC2AvailabilityZone
+
+  nestedALB:
+    DependsOn:
+      - nestedNSG
+      - nestedEC2
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "${TemplateUrlBase}/nested/alb.yaml"
+      # Parameters:
+      # VpcId: !Ref VpcId
+      # SubnetIds: !Ref SubnetIds
+
+  nestedRoute53:
+    DependsOn:
+      - nestedALB
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "${TemplateUrlBase}/nested/route53.yaml"
+      Parameters:
+        DomainName: !Ref DomainName
+        SubDomainName: !Ref SubDomainName

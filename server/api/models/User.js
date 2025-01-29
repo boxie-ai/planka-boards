@@ -27,6 +27,8 @@ const LANGUAGES = [
   'ro-RO',
   'ru-RU',
   'sk-SK',
+  'sr-Cyrl-CS',
+  'sr-Latn-CS',
   'sv-SE',
   'tr-TR',
   'uk-UA',
@@ -147,6 +149,7 @@ module.exports = {
   tableName: 'user_account',
 
   customToJSON() {
+    const fileManager = sails.hooks['file-manager'].getInstance();
     const isDefaultAdmin = this.email === sails.config.custom.defaultAdminEmail;
 
     return {
@@ -157,7 +160,7 @@ module.exports = {
       isDeletionLocked: isDefaultAdmin,
       avatarUrl:
         this.avatar &&
-        `${sails.config.custom.userAvatarsUrl}/${this.avatar.dirname}/square-100.${this.avatar.extension}`,
+        `${fileManager.buildUrl(`${sails.config.custom.userAvatarsPathSegment}/${this.avatar.dirname}/square-100.${this.avatar.extension}`)}`,
     };
   },
 };

@@ -1,6 +1,4 @@
-const path = require('path');
 const bcrypt = require('bcrypt');
-const rimraf = require('rimraf');
 const { v4: uuid } = require('uuid');
 
 const valuesValidator = (value) => {
@@ -101,8 +99,12 @@ module.exports = {
         inputs.record.avatar &&
         (!user.avatar || user.avatar.dirname !== inputs.record.avatar.dirname)
       ) {
+        const fileManager = sails.hooks['file-manager'].getInstance();
+
         try {
-          rimraf.sync(path.join(sails.config.custom.userAvatarsPath, inputs.record.avatar.dirname));
+          await fileManager.deleteDir(
+            `${sails.config.custom.userAvatarsPathSegment}/${inputs.record.avatar.dirname}`,
+          );
         } catch (error) {
           console.warn(error.stack); // eslint-disable-line no-console
         }

@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: A record for ALB
+
+Parameters:
+  DomainName:
+    Type: String
+  SubDomainName:
+    Type: String
+
+Resources:
+  DNSRecord:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      Comment: !Sub "DNS records for ${DomainName}"
+      HostedZoneId: !Ref HostedZoneIdProd
+      RecordSets:
+        - Name: !Sub "${SubDomainName}.${DomainName}"
+          Type: A
+          AliasTarget:
+            DNSName: !ImportValue LoadBalancerDNSName
+            HostedZoneId: !ImportValue AlbCanonicalHostedZoneID
+
+  WebCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Sub "${SubDomainName}.${DomainName}"
+      SubjectAlternativeNames:
+        - !Sub "${SubDomainName}.${DomainName}"
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Sub "${SubDomainName}.${DomainName}"
+          HostedZoneId: !Ref HostedZoneIdProd
+
+Outputs:
+  WebCertificateArn:
+    Description: Webcertificate aws resource number *aws id
+    Value: !Ref WebCertificate

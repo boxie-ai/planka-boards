@@ -1,6 +1,3 @@
-const path = require('path');
-const rimraf = require('rimraf');
-
 module.exports = {
   inputs: {
     record: {
@@ -50,8 +47,12 @@ module.exports = {
     const attachment = await Attachment.archiveOne(inputs.record.id);
 
     if (attachment) {
+      const fileManager = sails.hooks['file-manager'].getInstance();
+
       try {
-        rimraf.sync(path.join(sails.config.custom.attachmentsPath, attachment.dirname));
+        await fileManager.deleteDir(
+          `${sails.config.custom.attachmentsPathSegment}/${attachment.dirname}`,
+        );
       } catch (error) {
         console.warn(error.stack); // eslint-disable-line no-console
       }

@@ -1,0 +1,160 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: ALB with Target Groups and Listeners
+
+Parameters:
+  # VpcId:
+  #   Type: AWS::EC2::VPC::Id
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+
+Resources:
+  # development TG for access to EC2
+  TargetGroupDev:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: 80
+      HealthCheckPath: "/development"
+      Name: "TG-access-to-ec2-dev"
+      TargetType: instance
+      Targets:
+        - Id: !ImportValue WSWebAppInstanceID
+      Protocol: HTTP
+      Port: 80
+      VpcId: !ImportValue VpcId
+      Tags:
+        - Key: Name
+          Value: "TG-access-to-ec2-dev"
+
+  # testing TG for access to EC2
+  TargetGroupTest:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckEnabled: true
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckPort: 80
+      HealthCheckPath: "/testing"
+      Name: "TG-access-to-ec2-test"
+      TargetType: instance
+      Targets:
+        - Id: !ImportValue WSWebAppInstanceID
+      Protocol: HTTP
+      Port: 80
+      VpcId: !ImportValue VpcId
+      Tags:
+        - Key: Name
+          Value: "TG-access-to-ec2-test"
+
+  # ALB
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: ApplicationLoadBalancer
+      # Subnets: !Ref SubnetIds
+      SecurityGroups:
+        - !ImportValue AlbSecurityGroupId
+      Type: application
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: "300"
+      Tags:
+        - Key: Name
+          Value: ApplicationLoadBalancer
+
+  # ALB Listener redirects to HTTPS
+  AlbListenerHTTP:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Host: "#{host}"
+            Path: "/#{path}"
+            Port: "443"
+            Protocol: HTTPS
+            Query: "#{query}"
+            StatusCode: HTTP_301
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  # ALB listener on HTTPS
+  AlbListenerHTTPS:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: "ELBSecurityPolicy-TLS13-1-2-2021-06"
+      Certificates:
+        - CertificateArn: !ImportValue WebCertificate
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            ContentType: "text/plain"
+            MessageBody: "Page not found"
+            StatusCode: "404"
+
+  # Listener rules for development access
+  ListenerRuleDev:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref AlbListenerHTTPS
+      Priority: 1
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /development
+            - /development/*
+      Actions:
+        - Type: authenticate-cognito
+          Order: 1
+          AuthenticateCognitoConfig:
+            UserPoolArn: !ImportValue dev-UserPoolArn
+            UserPoolClientId: !ImportValue dev-UserPoolClientId
+            UserPoolDomain: !ImportValue dev-UserPoolDomain
+            SessionCookieName: devAppCookie
+            OnUnauthenticatedRequest: authenticate
+        - Type: forward
+          Order: 2
+          TargetGroupArn: !Ref TargetGroupDev
+
+  # Listener rules for test access
+  ListenerRuleTest:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref AlbListenerHTTPS
+      Priority: 2
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /testing
+            - /testing/*
+      Actions:
+        - Type: authenticate-cognito
+          Order: 1
+          AuthenticateCognitoConfig:
+            UserPoolArn: !ImportValue test-UserPoolArn
+            UserPoolClientId: !ImportValue test-UserPoolClientId
+            UserPoolDomain: !ImportValue test-UserPoolDomain
+            SessionCookieName: testAppCookie
+            OnUnauthenticatedRequest: authenticate
+        - Type: forward
+          Order: 2
+          TargetGroupArn: !Ref TargetGroupTest
+
+Outputs:
+  LoadBalancerDNSName:
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Description: The DNS name of the load balancer
+    Export:
+      Name: LoadBalancerDNSName
+  AlbCanonicalHostedZoneID:
+    Value: !GetAtt ApplicationLoadBalancer.CanonicalHostedZoneID
+    Description: The host ID of the ALB
+    Export:
+      Name: AlbCanonicalHostedZoneID

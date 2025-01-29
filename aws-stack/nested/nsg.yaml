@@ -1,0 +1,62 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: NSGs for ALB and EC2
+
+# Parameters:
+# VpcId:
+#   Type: "AWS::EC2::VPC::Id"
+
+Resources:
+  # NSG for ALB
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: alb-security-group
+      VpcId: !ImportValue VpcId
+      GroupDescription: Allow HTTP/HTTPS inbound and outbound traffic
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  # NSG for EC2
+  Ec2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: ec2-security-group
+      VpcId: !ImportValue VpcId
+      GroupDescription: Allow HTTP/HTTPS, SSH, RDP inbound and outbound traffic
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3389
+          ToPort: 3389
+          CidrIp: 0.0.0.0/0
+
+Outputs:
+  Ec2SecurityGroupId:
+    Value: !GetAtt Ec2SecurityGroup.GroupId
+    Description: EC2 Security Group ID
+    Export:
+      Name: Ec2SecurityGroupId
+
+  AlbSecurityGroupId:
+    Value: !GetAtt AlbSecurityGroup.GroupId
+    Description: ALB Security Group ID
+    Export:
+      Name: AlbSecurityGroupId
